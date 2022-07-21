@@ -3,17 +3,9 @@ const CopyPlugin = require('copy-webpack-plugin');
 
 const config = {
 	mode: 'production',
-	devtool: false,
-	entry: {
-		index: './src/ts/index.ts',
-		application: './src/ts/core/Application.ts',
-		canvas: './src/ts/core/Canvas.ts',
-		mapGenerator: './src/ts/procedural_landmass/MapGenerator.ts',
-		mapDisplay: './src/ts/procedural_landmass/MapDisplay.ts',
-		noise: './src/ts/procedural_landmass/Noise.ts'
-	},
+	entry: './src/ts/index.ts',
 	output: {
-		filename: '[name].bundle.js',
+		filename: 'bundle.js',
 		path: path.resolve(__dirname, 'public')
 	},
 	resolve: {
@@ -27,11 +19,6 @@ const config = {
 				exclude: /node-modules/,
 			}
 		]
-	},
-	optimization: {
-		splitChunks: {
-			chunks: 'all',
-		},
 	},
 	plugins: [
 		new CopyPlugin({
