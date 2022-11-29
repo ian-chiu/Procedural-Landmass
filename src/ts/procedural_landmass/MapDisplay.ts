@@ -40,14 +40,18 @@ export class MapDisplay
 
         let step = levelOfDetail === 0 ? 1 : levelOfDetail * 2;
         let nSideVert = (width - 1) / step + 1;
+        let minHeight = Infinity;
+        let maxHeight = -Infinity;
 
         const positions: number[] = [];
         const uvs: number[] = [];
         const indices: number[] = [];
         let vertIdx = 0;
         for (let row = 0; row < height; row += step) {
-            for (let col = 0; col < width; col += step) { 
+            for (let col = 0; col < width; col += step) {
                 const y = Math.pow(noiseMap[row][col], 4) * 20;
+                minHeight = Math.min(y, minHeight);
+                maxHeight = Math.max(y, maxHeight);
                 positions.push(col - halfWidth, y, row - halfHeight);
                 uvs.push(col / width, row / height);
 
@@ -63,6 +67,10 @@ export class MapDisplay
         geometry.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uvs), 2));
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
+        geometry.userData = {
+            minHeight: minHeight,
+            maxHeight: maxHeight
+        }
         return geometry;
     }
 }

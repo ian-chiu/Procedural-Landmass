@@ -4,7 +4,7 @@ import { Noise } from "./Noise";
 import GUI from "lil-gui";
 import { Vector2 } from "three";
 
-class ColorGUIHelper 
+class ColorGUIHelper
 {
     constructor(object: Object, prop: any) {
         this.object = object;
@@ -64,7 +64,7 @@ export class MapGenerator extends THREE.Object3D
         noiseFolder.add(this._parameters, "lacunarity", 1, 10).onChange(this.generate.bind(this));
         noiseFolder.add(this._parameters.offset, "x").name("offset X").onChange(this.generate.bind(this));
         noiseFolder.add(this._parameters.offset, "y").name("offset Y").onChange(this.generate.bind(this));
-        
+
         this._regionsFolder.add(this, "onPushNewRegionFromGui").name("+")
         this._regionsFolder.add(this, "onPopRegionFromGUI").name("-")
         for (let i = 0; i < this._regions.length; i++) {
@@ -77,7 +77,49 @@ export class MapGenerator extends THREE.Object3D
         this._plane = new THREE.Mesh(planeGeometry, this._planeMaterial);
 
         this._terrainMaterial = new THREE.MeshPhongMaterial({ color: "white" });
-        // this._terrainMaterial = new THREE.MeshBasicMaterial({ color: "white" });
+        this._terrainMaterial.userData = {
+            minHeight: { value: 0.0 },
+            maxHeight: { value: 1.0 },
+            baseColors: {
+                value: this._regions.map((item: any) => new THREE.Vector3(item.color.r, item.color.g, item.color.b))
+            },
+            baseEndHeights: {
+                value: this._regions.map((item: any) => item.height)
+            }
+        };
+        this._terrainMaterial.onBeforeCompile = shader => {
+            shader.vertexShader = "varying vec4 vWorldPosition;\n" + shader.vertexShader;
+            shader.vertexShader = shader.vertexShader.replace("#include <worldpos_vertex>",
+`
+    vec4 worldPosition = vec4( transformed, 1.0 );
+    vWorldPosition = worldPosition;
+	worldPosition = modelMatrix * worldPosition;
+`
+            );
+            shader.uniforms.minHeight = this._terrainMaterial.userData.minHeight;
+            shader.uniforms.maxHeight = this._terrainMaterial.userData.maxHeight;
+            shader.uniforms.baseColors = this._terrainMaterial.userData.baseColors;
+            shader.uniforms.baseEndHeights = this._terrainMaterial.userData.baseEndHeights;
+            shader.fragmentShader = "uniform float minHeight;\n" + shader.fragmentShader;
+            shader.fragmentShader = "uniform float maxHeight;\n" + shader.fragmentShader;
+            shader.fragmentShader = "uniform vec3 baseColors[MAX_COLOR_COUNT];\n" + shader.fragmentShader;
+            shader.fragmentShader = "uniform float baseEndHeights[MAX_COLOR_COUNT];\n" + shader.fragmentShader;
+            shader.fragmentShader = "const int MAX_COLOR_COUNT = 8;\n" + shader.fragmentShader;
+            shader.fragmentShader = "varying vec4 vWorldPosition;\n" + shader.fragmentShader;
+            shader.fragmentShader = shader.fragmentShader.replace( "#include <color_fragment>",
+`
+    float heightPercent = (vWorldPosition.y - minHeight) / (maxHeight - minHeight);
+    int i;
+    for (i = MAX_COLOR_COUNT - 1; i >= 0; i--) {
+        if (heightPercent > baseEndHeights[i]) {
+            i++;
+            break;
+        }
+    }
+    diffuseColor.rgb = baseColors[i];
+`
+            );
+        };
         this._terrain = new THREE.Mesh(undefined, this._terrainMaterial);
 
         this._wireframeMaterial = new THREE.LineBasicMaterial({ depthTest: false, opacity: 0.25, transparent: true });
@@ -120,11 +162,13 @@ export class MapGenerator extends THREE.Object3D
             const texture = MapDisplay.generateTexture(colorMap);
             this._planeMaterial.map = texture;
             this.add(this._plane);
-        }      
+        }
         else if (this._drawMode === MapGenerator.DrawMode.Terrain) {
             clear();
             const geometry = MapDisplay.generateTerrainGeometry(noiseMap, this._levelOfDetail);
-            const texture = MapDisplay.generateTexture(colorMap);
+            this._terrainMaterial.userData.minHeight.value = geometry.userData.minHeight;
+            this._terrainMaterial.userData.maxHeight.value = geometry.userData.maxHeight;
+            // const texture = MapDisplay.generateTexture(colorMap);
             if (this._wireframeMode) {
                 const wireframeGeometry = new THREE.WireframeGeometry(geometry);
                 this._wireframe.geometry = wireframeGeometry;
@@ -132,10 +176,10 @@ export class MapGenerator extends THREE.Object3D
             }
             else {
                 this._terrain.geometry = geometry;
-                this._terrainMaterial.map = texture;
+                // this._terrainMaterial.map = texture;
                 this.add(this._terrain);
             }
-        }  
+        }
     }
 
     public get drawMode() {
@@ -192,52 +236,52 @@ export class MapGenerator extends THREE.Object3D
     private _wireframeMode: boolean = false;
     private readonly _wireframe: THREE.LineSegments;
     private readonly _wireframeMaterial: THREE.LineBasicMaterial;
-    
+
     private _drawMode: MapGenerator.DrawMode;
     private readonly _chunkSize = 241;
     private _levelOfDetail = 0;
     private readonly _parameters = {
         seed: 0,
-        scale: 100, 
-        octaves: 4, 
-        persistance: 0.5, 
+        scale: 100,
+        octaves: 5,
+        persistance: 0.5,
         lacunarity: 2,
         offset: new Vector2(0, 0)
     };
     private _regions: TerrainType[] = [
         {
             name: "deep water",
-            height: 0.25,
+            height: 0.003,
             color: new THREE.Color("#2255ee")
         },
         {
             name: "water",
-            height: 0.35,
+            height: 0.015,
             color: new THREE.Color("#5179ee")
         },
         {
             name: "sand",
-            height: 0.4,
+            height: 0.025,
             color: new THREE.Color("#fff4c6")
         },
         {
             name: "grass 1",
-            height: 0.55,
+            height: 0.09,
             color: new THREE.Color("#60bb60")
         },
         {
             name: "grass 2",
-            height: 0.7,
+            height: 0.24,
             color: new THREE.Color("#468a46")
         },
         {
             name: "rock 1",
-            height: 0.8,
+            height: 0.5,
             color: new THREE.Color("#694f35")
         },
         {
             name: "rock 2",
-            height: 0.9,
+            height: 0.75,
             color: new THREE.Color("#423324")
         },
         {
