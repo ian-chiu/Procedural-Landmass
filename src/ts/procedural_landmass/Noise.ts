@@ -2,7 +2,7 @@ import SimplexNoise from "simplex-noise";
 import { Vector2 } from "three";
 import { mapLinear } from "three/src/math/MathUtils";
 
-export class Noise 
+export class Noise
 {
     public static generateNoiseMap(width: number, height: number, parameters: Noise.Parameters): number[][] {
         const { scale, seed, octaves, persistance, lacunarity, offset } = parameters;
@@ -51,10 +51,10 @@ export class Noise
 
 export namespace Noise {
     export type Parameters = {
-        scale: number, 
-        seed: number, 
-        octaves: number, 
-        persistance: number, 
+        scale: number,
+        seed: number,
+        octaves: number,
+        persistance: number,
         lacunarity: number,
         offset: Vector2
     }

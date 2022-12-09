@@ -58,18 +58,21 @@ export class MapGenerator extends THREE.Object3D
         this._regionsFolder.close();
 
         noiseFolder.add(this._parameters, "seed").onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters, "scale", 0.1, 300).onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters, "octaves", 0, 10).onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters, "persistance", 0, 1).onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters, "lacunarity", 1, 10).onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters.offset, "x").name("offset X").onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters.offset, "y").name("offset Y").onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters, "scale", 0.1, 5000, 0.001).onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters, "heightMultiplier", 1, 1000, 0.001).onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters, "octaves", 0, 10, 1).onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters, "persistance", 0, 1, 0.01).onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters, "lacunarity", 1, 10, 0.01).onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters.offset, "x", -1000, 1000, 0.001).name("offset X").onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters.offset, "y", -1000, 1000, 0.001).name("offset Y").onChange(this.generate.bind(this));
 
         this._regionsFolder.add(this, "onPushNewRegionFromGui").name("+")
         this._regionsFolder.add(this, "onPopRegionFromGUI").name("-")
         for (let i = 0; i < this._regions.length; i++) {
             this.addRegionFolder(i);
         }
+
+        this._curveFunction = (h: number) => Math.pow(h, 4);
         // -------------------------------------------------------------------------------------------------------
 
         const planeGeometry = new THREE.PlaneGeometry(4, 4);
@@ -84,7 +87,7 @@ export class MapGenerator extends THREE.Object3D
                 value: this._regions.map((item: any) => new THREE.Vector3(item.color.r, item.color.g, item.color.b))
             },
             baseEndHeights: {
-                value: this._regions.map((item: any) => item.height)
+                value: this._regions.map((item: any) => this._curveFunction(item.height))
             }
         };
         this._terrainMaterial.onBeforeCompile = shader => {
@@ -165,7 +168,8 @@ export class MapGenerator extends THREE.Object3D
         }
         else if (this._drawMode === MapGenerator.DrawMode.Terrain) {
             clear();
-            const geometry = MapDisplay.generateTerrainGeometry(noiseMap, this._levelOfDetail);
+            const geometry = MapDisplay.generateTerrainGeometry(noiseMap, this._levelOfDetail,
+                this._parameters.heightMultiplier, this._curveFunction);
             this._terrainMaterial.userData.minHeight.value = geometry.userData.minHeight;
             this._terrainMaterial.userData.maxHeight.value = geometry.userData.maxHeight;
             // const texture = MapDisplay.generateTexture(colorMap);
@@ -236,14 +240,16 @@ export class MapGenerator extends THREE.Object3D
     private _wireframeMode: boolean = false;
     private readonly _wireframe: THREE.LineSegments;
     private readonly _wireframeMaterial: THREE.LineBasicMaterial;
+    private readonly _curveFunction: (x: number) => number;
 
     private _drawMode: MapGenerator.DrawMode;
     private readonly _chunkSize = 241;
     private _levelOfDetail = 0;
     private readonly _parameters = {
-        seed: 0,
-        scale: 100,
-        octaves: 5,
+        seed: 168,
+        scale: 500,
+        heightMultiplier: 75,
+        octaves: 6,
         persistance: 0.5,
         lacunarity: 2,
         offset: new Vector2(0, 0)
@@ -251,37 +257,37 @@ export class MapGenerator extends THREE.Object3D
     private _regions: TerrainType[] = [
         {
             name: "deep water",
-            height: 0.003,
+            height: 0.25,
             color: new THREE.Color("#2255ee")
         },
         {
             name: "water",
-            height: 0.015,
+            height: 0.35,
             color: new THREE.Color("#5179ee")
         },
         {
             name: "sand",
-            height: 0.025,
+            height: 0.4,
             color: new THREE.Color("#fff4c6")
         },
         {
             name: "grass 1",
-            height: 0.09,
+            height: 0.55,
             color: new THREE.Color("#60bb60")
         },
         {
             name: "grass 2",
-            height: 0.24,
+            height: 0.7,
             color: new THREE.Color("#468a46")
         },
         {
             name: "rock 1",
-            height: 0.5,
+            height: 0.8,
             color: new THREE.Color("#694f35")
         },
         {
             name: "rock 2",
-            height: 0.75,
+            height: 0.9,
             color: new THREE.Color("#423324")
         },
         {
