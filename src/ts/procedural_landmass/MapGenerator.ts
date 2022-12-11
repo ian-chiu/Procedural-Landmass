@@ -3,6 +3,7 @@ import { MapDisplay } from "./MapDisplay";
 import { Noise } from "./Noise";
 import GUI from "lil-gui";
 import { Vector2 } from "three";
+import { shaderChunks } from "./shaderChunks";
 
 class ColorGUIHelper
 {
@@ -23,6 +24,7 @@ class ColorGUIHelper
 type TerrainType = {
     name: string,
     height: number,
+    blend: number,
     color: THREE.Color
 }
 
@@ -63,8 +65,8 @@ export class MapGenerator extends THREE.Object3D
         noiseFolder.add(this._parameters, "octaves", 0, 10, 1).onChange(this.generate.bind(this));
         noiseFolder.add(this._parameters, "persistance", 0, 1, 0.01).onChange(this.generate.bind(this));
         noiseFolder.add(this._parameters, "lacunarity", 1, 10, 0.01).onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters.offset, "x", -1000, 1000, 0.001).name("offset X").onChange(this.generate.bind(this));
-        noiseFolder.add(this._parameters.offset, "y", -1000, 1000, 0.001).name("offset Y").onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters.offset, "x", -100, 100, 0.001).name("offset X").onChange(this.generate.bind(this));
+        noiseFolder.add(this._parameters.offset, "y", -100, 100, 0.001).name("offset Y").onChange(this.generate.bind(this));
 
         this._regionsFolder.add(this, "onPushNewRegionFromGui").name("+")
         this._regionsFolder.add(this, "onPopRegionFromGUI").name("-")
@@ -86,42 +88,25 @@ export class MapGenerator extends THREE.Object3D
             baseColors: {
                 value: this._regions.map((item: any) => new THREE.Vector3(item.color.r, item.color.g, item.color.b))
             },
-            baseEndHeights: {
+            baseBeginHeights: {
                 value: this._regions.map((item: any) => this._curveFunction(item.height))
+            },
+            baseBlends: {
+                value: this._regions.map((item: any) => item.blend)
             }
         };
         this._terrainMaterial.onBeforeCompile = shader => {
-            shader.vertexShader = "varying vec4 vWorldPosition;\n" + shader.vertexShader;
-            shader.vertexShader = shader.vertexShader.replace("#include <worldpos_vertex>",
-`
-    vec4 worldPosition = vec4( transformed, 1.0 );
-    vWorldPosition = worldPosition;
-	worldPosition = modelMatrix * worldPosition;
-`
-            );
             shader.uniforms.minHeight = this._terrainMaterial.userData.minHeight;
             shader.uniforms.maxHeight = this._terrainMaterial.userData.maxHeight;
             shader.uniforms.baseColors = this._terrainMaterial.userData.baseColors;
-            shader.uniforms.baseEndHeights = this._terrainMaterial.userData.baseEndHeights;
-            shader.fragmentShader = "uniform float minHeight;\n" + shader.fragmentShader;
-            shader.fragmentShader = "uniform float maxHeight;\n" + shader.fragmentShader;
-            shader.fragmentShader = "uniform vec3 baseColors[MAX_COLOR_COUNT];\n" + shader.fragmentShader;
-            shader.fragmentShader = "uniform float baseEndHeights[MAX_COLOR_COUNT];\n" + shader.fragmentShader;
-            shader.fragmentShader = "const int MAX_COLOR_COUNT = 8;\n" + shader.fragmentShader;
-            shader.fragmentShader = "varying vec4 vWorldPosition;\n" + shader.fragmentShader;
-            shader.fragmentShader = shader.fragmentShader.replace( "#include <color_fragment>",
-`
-    float heightPercent = (vWorldPosition.y - minHeight) / (maxHeight - minHeight);
-    int i;
-    for (i = MAX_COLOR_COUNT - 1; i >= 0; i--) {
-        if (heightPercent > baseEndHeights[i]) {
-            i++;
-            break;
-        }
-    }
-    diffuseColor.rgb = baseColors[i];
-`
-            );
+            shader.uniforms.baseBeginHeights = this._terrainMaterial.userData.baseBeginHeights;
+            shader.uniforms.baseBlends = this._terrainMaterial.userData.baseBlends;
+
+            shader.vertexShader = "varying vec4 vWorldPosition;\n" + shader.vertexShader;
+            shader.vertexShader = shader.vertexShader.replace("#include <worldpos_vertex>", shaderChunks.worldposVertex);
+
+            shader.fragmentShader = shaderChunks.prepareFragment + shader.fragmentShader;
+            shader.fragmentShader = shader.fragmentShader.replace("#include <color_fragment>", shaderChunks.colorFragment);
         };
         this._terrain = new THREE.Mesh(undefined, this._terrainMaterial);
 
@@ -197,7 +182,8 @@ export class MapGenerator extends THREE.Object3D
         }
         this._regions.push({
             name: `default_${length}`,
-            height: 1,
+            height: 1.0,
+            blend: 0.0,
             color: new THREE.Color("white")
         });
         this.addRegionFolder(length);
@@ -215,6 +201,14 @@ export class MapGenerator extends THREE.Object3D
 
     private onChangeRegionFromGUI() {
         const regions = this._regions.map(item => ({...item, color: `#${item.color.getHexString()}` }));
+        for (let i = 0; i < regions.length; i++) {
+            const color = this._regions[i].color;
+            const height = this._regions[i].height;
+            const blend = this._regions[i].blend;
+            this._terrainMaterial.userData.baseColors.value[i].set(color.r, color.g, color.b);
+            this._terrainMaterial.userData.baseBeginHeights.value[i] = this._curveFunction(height);
+            this._terrainMaterial.userData.baseBlends.value[i] = blend;
+        }
         localStorage.setItem("regions", JSON.stringify(regions));
     }
 
@@ -227,6 +221,7 @@ export class MapGenerator extends THREE.Object3D
         }
         regionFolder.add(region, "name").onChange(update);
         regionFolder.add(region, "height", 0, 1).onChange(update);
+        regionFolder.add(region, "blend", 0, 1).onChange(update);
         regionFolder.addColor(new ColorGUIHelper(region, "color"), "value").name("color").onChange(update);
     }
 
@@ -257,42 +252,50 @@ export class MapGenerator extends THREE.Object3D
     private _regions: TerrainType[] = [
         {
             name: "deep water",
-            height: 0.25,
+            height: 0,
+            blend: 0.0,
             color: new THREE.Color("#2255ee")
         },
         {
             name: "water",
-            height: 0.35,
+            height: 0.25,
+            blend: 0.0,
             color: new THREE.Color("#5179ee")
         },
         {
             name: "sand",
-            height: 0.4,
+            height: 0.35,
+            blend: 0.0,
             color: new THREE.Color("#fff4c6")
         },
         {
             name: "grass 1",
-            height: 0.55,
+            height: 0.4,
+            blend: 0.0,
             color: new THREE.Color("#60bb60")
         },
         {
             name: "grass 2",
-            height: 0.7,
+            height: 0.55,
+            blend: 0.0,
             color: new THREE.Color("#468a46")
         },
         {
             name: "rock 1",
-            height: 0.8,
+            height: 0.7,
+            blend: 0.0,
             color: new THREE.Color("#694f35")
         },
         {
             name: "rock 2",
-            height: 0.9,
+            height: 0.8,
+            blend: 0.0,
             color: new THREE.Color("#423324")
         },
         {
             name: "snow",
-            height: 1.0,
+            height: 0.9,
+            blend: 0.0,
             color: new THREE.Color("#eaeaea")
         },
     ]

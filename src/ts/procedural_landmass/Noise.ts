@@ -12,8 +12,8 @@ export class Noise
         for (let octave = 0; octave < octaves; octave++) {
             const randX = simplexNoise.noise2D(octave, octave);
             const randY = simplexNoise.noise2D(-octave, -octave);
-            const offsetX = randX * 200000 - 100000 + offset.x;
-            const offsetY = randY * 200000 - 100000 + offset.y;
+            const offsetX = randX * 200000 - 100000;
+            const offsetY = randY * 200000 - 100000;
             octaveOffsets.push([offsetX, offsetY]);
         }
         let maxNoiseHeight = -Infinity;
@@ -27,8 +27,8 @@ export class Noise
                 let amplitude = 1;
                 let noiseHeight = 0;
                 for (let octave = 0; octave < octaves; octave++) {
-                    const sampleX = (x - halfWidth) / scale * frequency + octaveOffsets[octave][0];
-                    const sampleY = (y - halfHeight) / scale * frequency + octaveOffsets[octave][1];
+                    const sampleX = (x + offset.x - halfWidth + octaveOffsets[octave][0]) / scale * frequency;
+                    const sampleY = (y + offset.y - halfHeight + octaveOffsets[octave][1]) / scale * frequency;
                     const simplexValue = simplexNoise.noise2D(sampleX, sampleY) * 2 - 1;
                     noiseHeight += simplexValue * amplitude;
                     frequency *= lacunarity;
