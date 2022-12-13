@@ -45,24 +45,13 @@ mapGenerator.generate();
 scene.add(mapGenerator);
 
 const resetCamera = () => {
-    if (mapGenerator.drawMode === MapGenerator.DrawMode.Terrain) {
-        camera.position.set(0, 200, -300);
-        camera.lookAt(0, 0, 0);
-    }
-    else {
-        camera.position.set(0, 0, -7);
-        camera.lookAt(0, 0, 0);
-    }
+    camera.position.set(0, 100, -200);
+    camera.lookAt(0, 0, 0);
 }
 
 resetCamera();
 
-let prevDrawMode = mapGenerator.drawMode;
 app.onUpdate = (deltaTime: number) => {
-    if (prevDrawMode !== mapGenerator.drawMode) {
-        resetCamera();
-        prevDrawMode = mapGenerator.drawMode;
-    }
     orbitCameraController.update();
     renderer.render(scene, camera);
 }
