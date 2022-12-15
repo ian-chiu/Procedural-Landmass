@@ -1,9 +1,9 @@
-import * as THREE from "three"
+import * as THREE from "three";
 import Application from "./core/Application";
 import Canvas from "./core/Canvas";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import EventDispatcher from "./core/EventDispatcher";
-import { MapGenerator } from "./procedural_landmass/MapGenerator";
+import { World } from "./procedural_landscape/World";
 
 const canvas = new Canvas({ elementId: "c" });
 const app = new Application(canvas);
@@ -13,16 +13,21 @@ const cameraProps = {
     fov: 50,
     aspect: canvas.aspect,
     near: 0.1,
-    far: 500
+    far: 500,
 };
-const camera = new THREE.PerspectiveCamera(cameraProps.fov, cameraProps.aspect, cameraProps.near, cameraProps.far);
+const camera = new THREE.PerspectiveCamera(
+    cameraProps.fov,
+    cameraProps.aspect,
+    cameraProps.near,
+    cameraProps.far
+);
 const orbitCameraController = new OrbitControls(camera, canvas.domElement);
 
-const scene = new THREE.Scene;
-scene.background = new THREE.Color(0X333333);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x333333);
 
 {
-    const color = 0xFFFFFF;
+    const color = 0xffffff;
     const intensity = 1;
     const light = new THREE.DirectionalLight(color, intensity);
     light.position.set(0, 10, 0);
@@ -32,29 +37,28 @@ scene.background = new THREE.Color(0X333333);
 }
 
 {
-    const skyColor = 0xB1E1FF;  // light blue
-    const groundColor = 0xB97A20;  // brownish orange
+    const skyColor = 0xb1e1ff; // light blue
+    const groundColor = 0xb97a20; // brownish orange
     const intensity = 0.2;
     const light = new THREE.HemisphereLight(skyColor, groundColor, intensity);
     scene.add(light);
 }
 
-
-const mapGenerator = new MapGenerator;
-mapGenerator.generate();
-scene.add(mapGenerator);
+const world = new World();
+world.generate();
+scene.add(world);
 
 const resetCamera = () => {
     camera.position.set(0, 100, -200);
     camera.lookAt(0, 0, 0);
-}
+};
 
 resetCamera();
 
 app.onUpdate = (deltaTime: number) => {
     orbitCameraController.update();
     renderer.render(scene, camera);
-}
+};
 
 app.onEvent = (event: Event) => {
     const dispatcher = new EventDispatcher(event);
@@ -63,6 +67,6 @@ app.onEvent = (event: Event) => {
         camera.updateProjectionMatrix();
         return true;
     });
-}
+};
 
 app.run();

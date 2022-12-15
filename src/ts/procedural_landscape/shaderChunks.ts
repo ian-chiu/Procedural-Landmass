@@ -1,6 +1,5 @@
 export namespace shaderChunks {
-    export const prepareFragment =
-`
+    export const prepareFragment = `
 varying vec4 vWorldPosition;
 const int MAX_COLOR_COUNT = 8;
 const float EPSILON = 0.0001;
@@ -15,15 +14,13 @@ float inverseLerp(float a, float b, float v) {
 }
 `;
 
-    export const worldposVertex =
-`
+    export const worldposVertex = `
     vec4 worldPosition = vec4( transformed, 1.0 );
     vWorldPosition = worldPosition;
 	worldPosition = modelMatrix * worldPosition;
 `;
 
-    export const colorFragment =
-`
+    export const colorFragment = `
     float heightPercent = inverseLerp(minHeight, maxHeight, vWorldPosition.y);
     for (int i = 0; i < MAX_COLOR_COUNT; i++) {
         float drawStrength = inverseLerp(-baseBlends[i] / 2.0 - EPSILON, baseBlends[i] / 2.0, heightPercent - baseBeginHeights[i]);

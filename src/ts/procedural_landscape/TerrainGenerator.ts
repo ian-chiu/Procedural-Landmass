@@ -1,24 +1,32 @@
-import * as THREE from "three"
+import { Vector3 } from "three";
 import GridMetrics from "./GridMetrics";
+import { NoiseFilter } from "./NoiseFilter";
 import { indexFromCoord } from "./utils";
 
-const chunkSize = GridMetrics.pointsPerChunk;
-
 const edgeConnections = [
-    [0,1], [1,2], [2,3], [3,0],
-    [4,5], [5,6], [6,7], [7,4],
-    [0,4], [1,5], [2,6], [3,7]
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 0],
+    [4, 5],
+    [5, 6],
+    [6, 7],
+    [7, 4],
+    [0, 4],
+    [1, 5],
+    [2, 6],
+    [3, 7],
 ];
 
 const cornerOffsets = [
-    new THREE.Vector3(0, 0, 1),
-    new THREE.Vector3(1, 0, 1),
-    new THREE.Vector3(1, 0, 0),
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(0, 1, 1),
-    new THREE.Vector3(1, 1, 1),
-    new THREE.Vector3(1, 1, 0),
-    new THREE.Vector3(0, 1, 0)
+    new Vector3(0, 0, 1),
+    new Vector3(1, 0, 1),
+    new Vector3(1, 0, 0),
+    new Vector3(0, 0, 0),
+    new Vector3(0, 1, 1),
+    new Vector3(1, 1, 1),
+    new Vector3(1, 1, 0),
+    new Vector3(0, 1, 0),
 ];
 
 const triTable = [
@@ -277,89 +285,156 @@ const triTable = [
     [1, 3, 8, 9, 1, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
     [0, 9, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
     [0, 3, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
-    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+    [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
 ];
 
-const interp = (isolevel: number, edgeVertex1: THREE.Vector3, valueAtVertex1: number, edgeVertex2: THREE.Vector3,  valueAtVertex2: number) => {
-    const result = new THREE.Vector3().copy(edgeVertex2);
-    result.sub(edgeVertex1);
-    result.multiplyScalar((isolevel - valueAtVertex1) / (valueAtVertex2 - valueAtVertex1));
-    result.add(edgeVertex1);
-    return result;
-}
+export class TerrainGenerator {
+    public static groundNoise = new NoiseFilter({
+        strength: 20,
+        roughness: 0.7,
+        scale: 50,
+        weight: new Vector3(1, 0.2, 1),
+        lacunarity: 1.65,
+        minValue: -0.75,
+    });
+    public static groundPercent = 0.3;
+    public static isolevel = 0.5;
 
-const march = (isolevel: number, density: Float32Array): [Float32Array, number[]] => {
-    const positions: number[] = [];
-    const indices: number[] = [];
-    const indexMemory: {
-        [key:string]: number
-    } = {};
-    let vertexIndex = 0;
-    for (let x = 0; x < chunkSize - 1; x++) {
-        for (let y = 0; y < chunkSize - 1; y++) {
-            for (let z = 0; z < chunkSize - 1; z++) {
-                const currPosition = new THREE.Vector3(x, y, z);
+    public static generate(
+        side: number = GridMetrics.pointsPerChunk
+    ): TerrainGenerator.OutputProperties {
+        const density = this.generateDensity(side);
+        const positions: number[] = [];
+        const indices: number[] = [];
+        const indexMemory: {
+            [key: string]: number;
+        } = {};
+        let vertexIndex = 0;
+        for (let x = 0; x < side; x++) {
+            for (let y = 0; y < side; y++) {
+                for (let z = 0; z < side; z++) {
+                    const currPosition = new Vector3(x, y, z);
 
-                const cubeValues = [
-                   density[indexFromCoord(x, y, z + 1)],
-                   density[indexFromCoord(x + 1, y, z + 1)],
-                   density[indexFromCoord(x + 1, y, z)],
-                   density[indexFromCoord(x, y, z)],
-                   density[indexFromCoord(x, y + 1, z + 1)],
-                   density[indexFromCoord(x + 1, y + 1, z + 1)],
-                   density[indexFromCoord(x + 1, y + 1, z)],
-                   density[indexFromCoord(x, y + 1, z)]
-                ];
+                    const cubeValues = [
+                        density[indexFromCoord(x, y, z + 1)],
+                        density[indexFromCoord(x + 1, y, z + 1)],
+                        density[indexFromCoord(x + 1, y, z)],
+                        density[indexFromCoord(x, y, z)],
+                        density[indexFromCoord(x, y + 1, z + 1)],
+                        density[indexFromCoord(x + 1, y + 1, z + 1)],
+                        density[indexFromCoord(x + 1, y + 1, z)],
+                        density[indexFromCoord(x, y + 1, z)],
+                    ];
 
-                let cubeIndex = 0;
-                if (cubeValues[0] < isolevel) cubeIndex |= 1;
-                if (cubeValues[1] < isolevel) cubeIndex |= 2;
-                if (cubeValues[2] < isolevel) cubeIndex |= 4;
-                if (cubeValues[3] < isolevel) cubeIndex |= 8;
-                if (cubeValues[4] < isolevel) cubeIndex |= 16;
-                if (cubeValues[5] < isolevel) cubeIndex |= 32;
-                if (cubeValues[6] < isolevel) cubeIndex |= 64;
-                if (cubeValues[7] < isolevel) cubeIndex |= 128;
+                    let cubeIndex = 0;
+                    if (cubeValues[0] < this.isolevel) cubeIndex |= 1;
+                    if (cubeValues[1] < this.isolevel) cubeIndex |= 2;
+                    if (cubeValues[2] < this.isolevel) cubeIndex |= 4;
+                    if (cubeValues[3] < this.isolevel) cubeIndex |= 8;
+                    if (cubeValues[4] < this.isolevel) cubeIndex |= 16;
+                    if (cubeValues[5] < this.isolevel) cubeIndex |= 32;
+                    if (cubeValues[6] < this.isolevel) cubeIndex |= 64;
+                    if (cubeValues[7] < this.isolevel) cubeIndex |= 128;
 
-                const edges = triTable[cubeIndex];
-                let i = 0;
-                for (i = 0; edges[i] != -1; i += 3) {
-                    // First edge lies between vertex e00 and vertex e01
-                    let e00 = edgeConnections[edges[i]][0];
-                    let e01 = edgeConnections[edges[i]][1];
+                    const edges = triTable[cubeIndex];
+                    let i = 0;
+                    for (i = 0; edges[i] != -1; i += 3) {
+                        // First edge lies between vertex e00 and vertex e01
+                        let e00 = edgeConnections[edges[i]][0];
+                        let e01 = edgeConnections[edges[i]][1];
 
-                    // Second edge lies between vertex e10 and vertex e11
-                    let e10 = edgeConnections[edges[i + 1]][0];
-                    let e11 = edgeConnections[edges[i + 1]][1];
-                    
-                    // Third edge lies between vertex e20 and vertex e21
-                    let e20 = edgeConnections[edges[i + 2]][0];
-                    let e21 = edgeConnections[edges[i + 2]][1];
+                        // Second edge lies between vertex e10 and vertex e11
+                        let e10 = edgeConnections[edges[i + 1]][0];
+                        let e11 = edgeConnections[edges[i + 1]][1];
 
-                    const points = [];
-                    points.push(interp(isolevel, cornerOffsets[e00], cubeValues[e00], cornerOffsets[e01], cubeValues[e01]).add(currPosition));
-                    points.push(interp(isolevel, cornerOffsets[e10], cubeValues[e10], cornerOffsets[e11], cubeValues[e11]).add(currPosition));
-                    points.push(interp(isolevel, cornerOffsets[e20], cubeValues[e20], cornerOffsets[e21], cubeValues[e21]).add(currPosition));
+                        // Third edge lies between vertex e20 and vertex e21
+                        let e20 = edgeConnections[edges[i + 2]][0];
+                        let e21 = edgeConnections[edges[i + 2]][1];
 
-                    for (const point of points) {
-                        point.subScalar(GridMetrics.pointsPerChunk / 2);
-                        const key = `${point.x},${point.y},${point.z}`;
-                        if (key in indexMemory) {
-                            indices.push(indexMemory[key]);
-                        } else {
-                            indexMemory[key] = vertexIndex;
-                            indices.push(vertexIndex++);
-                            positions.push(point.x);
-                            positions.push(point.y);
-                            positions.push(point.z);
+                        const points = [];
+                        points.push(
+                            this.interp(
+                                cornerOffsets[e00],
+                                cubeValues[e00],
+                                cornerOffsets[e01],
+                                cubeValues[e01]
+                            ).add(currPosition)
+                        );
+                        points.push(
+                            this.interp(
+                                cornerOffsets[e10],
+                                cubeValues[e10],
+                                cornerOffsets[e11],
+                                cubeValues[e11]
+                            ).add(currPosition)
+                        );
+                        points.push(
+                            this.interp(
+                                cornerOffsets[e20],
+                                cubeValues[e20],
+                                cornerOffsets[e21],
+                                cubeValues[e21]
+                            ).add(currPosition)
+                        );
+
+                        for (const point of points) {
+                            point.subScalar(GridMetrics.pointsPerChunk / 2);
+                            const key = `${point.x},${point.y},${point.z}`;
+                            if (key in indexMemory) {
+                                indices.push(indexMemory[key]);
+                            } else {
+                                indexMemory[key] = vertexIndex;
+                                indices.push(vertexIndex++);
+                                positions.push(point.x);
+                                positions.push(point.y);
+                                positions.push(point.z);
+                            }
                         }
                     }
                 }
             }
         }
+        return {
+            positions: new Float32Array(positions),
+            indices: indices,
+        };
     }
 
-    return [new Float32Array(positions), indices];
-};
+    private static interp(
+        edgeVertex1: Vector3,
+        valueAtVertex1: number,
+        edgeVertex2: Vector3,
+        valueAtVertex2: number
+    ) {
+        const result = new Vector3().copy(edgeVertex2);
+        result.sub(edgeVertex1);
+        result.multiplyScalar(
+            (this.isolevel - valueAtVertex1) / (valueAtVertex2 - valueAtVertex1)
+        );
+        result.add(edgeVertex1);
+        return result;
+    }
 
-export { march };
+    private static generateDensity(side: number): Float32Array {
+        const result = new Float32Array(Math.pow(side + 1, 3));
+        for (let x = 1; x < side; x++) {
+            for (let y = 1; y < side; y++) {
+                for (let z = 1; z < side; z++) {
+                    const index = indexFromCoord(x, y, z);
+                    let value = -y + this.groundPercent * side;
+                    let terrainDensity = this.groundNoise.evaluate(x, y, z);
+                    value += terrainDensity;
+                    result[index] = value;
+                }
+            }
+        }
+        return result;
+    }
+}
+
+export namespace TerrainGenerator {
+    export type OutputProperties = {
+        positions: Float32Array;
+        indices: number[];
+    };
+}
