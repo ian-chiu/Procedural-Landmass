@@ -1,149 +1,25 @@
 import * as THREE from "three";
-import GUI from "lil-gui";
-import { shaderChunks } from "./shaderChunks";
 import Chunk from "./Chunk";
 import { TerrainGenerator } from "./TerrainGenerator";
-
-class ColorGUIHelper {
-    constructor(object: Object, prop: any) {
-        this.object = object;
-        this.prop = prop;
-    }
-    get value() {
-        return `#${this.object[this.prop].getHexString()}`;
-    }
-    set value(hexString) {
-        this.object[this.prop].set(hexString);
-    }
-    private object: { [k: string]: any };
-    private prop: any;
-}
-
-type TerrainType = {
-    name: string;
-    height: number;
-    blend: number;
-    color: THREE.Color;
-};
-
-const maxNumRegions = 20;
+import { Pane } from "tweakpane";
+import GridMetrics from "./GridMetrics";
 
 export class World extends THREE.Object3D {
+    private chunk: Chunk;
+    private readonly terrain: THREE.Mesh;
+    private readonly terrainMaterial: THREE.MeshPhongMaterial;
+    private wireframeMode: boolean = false;
+    private readonly wireframe: THREE.LineSegments;
+    private readonly wireframeMaterial: THREE.LineBasicMaterial;
+
     public constructor() {
         super();
-
-        if (localStorage.getItem("regions")) {
-            const text = localStorage.getItem("regions") as string;
-            const regions = JSON.parse(text);
-            this.regions = regions.map((item: any) => ({
-                ...item,
-                color: new THREE.Color(item.color),
-            }));
-        }
-
-        this.gui = new GUI();
-        this.gui
-            .add(this, "wireframeMode")
-            .name("wireframe")
-            .onChange(this.generate.bind(this));
-        this.gui
-            .add(this, "levelOfDetail", 0, 6, 1)
-            .name("level of detail")
-            .onChange(this.generate.bind(this));
-
-        const noiseFolder = this.gui.addFolder("Noise");
-        this.regionsFolder = this.gui.addFolder("Regions");
-        this.regionsFolder.close();
-
-        const noiseSettings = TerrainGenerator.groundNoise.settings;
-        noiseFolder
-            .add(TerrainGenerator.groundNoise, "seed")
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings, "strength", 1, 100)
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings, "roughness", 0.1, 10, 0.01)
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings.weight, "y", 0, 1)
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings, "scale", 1, 100)
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings, "octaves", 1, 10, 1)
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings, "persistance", 0, 1, 0.01)
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings, "lacunarity", 1, 10, 0.01)
-            .onChange(this.generate.bind(this));
-        noiseFolder
-            .add(noiseSettings, "minValue", -1, 1, 0.01)
-            .onChange(this.generate.bind(this));
-
-        this.regionsFolder.add(this, "onPushNewRegionFromGui").name("+");
-        this.regionsFolder.add(this, "onPopRegionFromGUI").name("-");
-        for (let i = 0; i < this.regions.length; i++) {
-            this.addRegionFolder(i);
-        }
-
-        this.curveFunction = (h: number) => Math.pow(h, 2);
-
+        this.guiSetup();
         this.terrainMaterial = new THREE.MeshPhongMaterial({ color: "white" });
-        this.terrainMaterial.userData = {
-            minHeight: { value: 0.0 },
-            maxHeight: { value: 1.0 },
-            baseColors: {
-                value: this.regions.map(
-                    (item: any) =>
-                        new THREE.Vector3(
-                            item.color.r,
-                            item.color.g,
-                            item.color.b
-                        )
-                ),
-            },
-            baseBeginHeights: {
-                value: this.regions.map((item: any) =>
-                    this.curveFunction(item.height)
-                ),
-            },
-            baseBlends: {
-                value: this.regions.map((item: any) => item.blend),
-            },
-        };
-        this.terrainMaterial.onBeforeCompile = (shader) => {
-            shader.uniforms.minHeight = this.terrainMaterial.userData.minHeight;
-            shader.uniforms.maxHeight = this.terrainMaterial.userData.maxHeight;
-            shader.uniforms.baseColors =
-                this.terrainMaterial.userData.baseColors;
-            shader.uniforms.baseBeginHeights =
-                this.terrainMaterial.userData.baseBeginHeights;
-            shader.uniforms.baseBlends =
-                this.terrainMaterial.userData.baseBlends;
-
-            shader.vertexShader =
-                "varying vec4 vWorldPosition;\n" + shader.vertexShader;
-            shader.vertexShader = shader.vertexShader.replace(
-                "#include <worldposvertex>",
-                shaderChunks.worldposVertex
-            );
-
-            shader.fragmentShader =
-                shaderChunks.prepareFragment + shader.fragmentShader;
-            shader.fragmentShader = shader.fragmentShader.replace(
-                "#include <colorfragment>",
-                shaderChunks.colorFragment
-            );
-        };
         this.terrain = new THREE.Mesh(undefined, this.terrainMaterial);
         this.chunk = new Chunk();
         this.chunk.updateTerrainGeometry();
         this.terrain.geometry = this.chunk.geometry;
-
         this.wireframeMaterial = new THREE.LineBasicMaterial({
             depthTest: false,
             opacity: 0.25,
@@ -156,16 +32,10 @@ export class World extends THREE.Object3D {
     }
 
     public generate() {
-        const clear = () => {
-            this.remove(this.terrain);
-            this.remove(this.wireframe);
-        };
+        this.remove(this.terrain);
+        this.remove(this.wireframe);
 
-        clear();
-        this.terrainMaterial.userData.minHeight.value =
-            this.chunk.geometry.userData.minHeight;
-        this.terrainMaterial.userData.maxHeight.value =
-            this.chunk.geometry.userData.maxHeight;
+        console.log(this.wireframeMode);
         if (this.wireframeMode) {
             const wireframeGeometry = new THREE.WireframeGeometry(
                 this.chunk.geometry
@@ -178,128 +48,132 @@ export class World extends THREE.Object3D {
         }
     }
 
-    private onPushNewRegionFromGui() {
-        const length = this.regions.length;
-        if (length === maxNumRegions) {
-            return;
-        }
-        this.regions.push({
-            name: `default${length}`,
-            height: 1.0,
-            blend: 0.0,
-            color: new THREE.Color("white"),
-        });
-        this.addRegionFolder(length);
-        this.onChangeRegionFromGUI();
-    }
+    private guiSetup() {
+        const dragElement = (elmnt: HTMLElement, anchor: HTMLElement) => {
+            let pos1 = 0,
+                pos2 = 0,
+                pos3 = 0,
+                pos4 = 0;
 
-    private onPopRegionFromGUI() {
-        if (this.regions.length === 0) {
-            return;
-        }
-        this.regionsFolder.children.slice(-1)[0].destroy();
-        this.regions.pop();
-        this.onChangeRegionFromGUI();
-    }
+            const header = document.getElementById(anchor.id + "header");
+            if (header) {
+                // if present, the header is where you move the DIV from:
+                header.onmousedown = dragMouseDown;
+                console.log("header");
+            } else {
+                // otherwise, move the DIV from anywhere inside the DIV:
+                anchor.onmousedown = dragMouseDown;
+            }
 
-    private onChangeRegionFromGUI() {
-        const regions = this.regions.map((item) => ({
-            ...item,
-            color: `#${item.color.getHexString()}`,
-        }));
-        for (let i = 0; i < regions.length; i++) {
-            const color = this.regions[i].color;
-            const height = this.regions[i].height;
-            const blend = this.regions[i].blend;
-            this.terrainMaterial.userData.baseColors.value[i].set(
-                color.r,
-                color.g,
-                color.b
-            );
-            this.terrainMaterial.userData.baseBeginHeights.value[i] =
-                this.curveFunction(height);
-            this.terrainMaterial.userData.baseBlends.value[i] = blend;
-        }
-        localStorage.setItem("regions", JSON.stringify(regions));
-    }
+            function dragMouseDown(e: MouseEvent) {
+                e = e || window.event;
+                e.preventDefault();
+                // get the mouse cursor position at startup:
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                // call a function whenever the cursor moves:
+                document.onmousemove = elementDrag;
+            }
 
-    private addRegionFolder(index: number) {
-        const region = this.regions[index];
-        const regionFolder = this.regionsFolder.addFolder(`index ${index}`);
-        const update = () => {
-            this.generate();
-            this.onChangeRegionFromGUI();
+            function elementDrag(e: MouseEvent) {
+                e = e || window.event;
+                e.preventDefault();
+                // calculate the new cursor position:
+                pos1 = pos3 - e.clientX;
+                pos2 = pos4 - e.clientY;
+                pos3 = e.clientX;
+                pos4 = e.clientY;
+                // set the element's new position:
+                elmnt.style.top = elmnt.offsetTop - pos2 + "px";
+                elmnt.style.left = elmnt.offsetLeft - pos1 + "px";
+            }
+
+            function closeDragElement() {
+                // stop moving when mouse button is released:
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
         };
-        regionFolder.add(region, "name").onChange(update);
-        regionFolder.add(region, "height", 0, 1).onChange(update);
-        regionFolder.add(region, "blend", 0, 1).onChange(update);
-        regionFolder
-            .addColor(new ColorGUIHelper(region, "color"), "value")
-            .name("color")
-            .onChange(update);
+
+        const guiContainerElement =
+            document.getElementById("gui-container") || undefined;
+        const pane = new Pane({
+            title: "Configuration",
+            container: guiContainerElement,
+        });
+        if (guiContainerElement) {
+            const dragZone = document.createElement("div");
+            dragZone.setAttribute("id", "drag-zone");
+            pane.element.appendChild(dragZone);
+            dragElement(guiContainerElement, dragZone);
+        }
+
+        let folder = pane.addFolder({ title: "General" });
+        let checkbox = { wireframe: this.wireframeMode };
+        folder.addInput(checkbox, "wireframe").on("change", (e) => {
+            this.wireframeMode = e.value;
+            this.generate();
+        });
+
+        folder = pane.addFolder({ title: "GroundNoise" });
+
+        const groundNoise = TerrainGenerator.groundNoise;
+        folder
+            .addInput(TerrainGenerator.groundNoise, "seed", { step: 1 })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "scale", {
+                step: 0.1,
+                min: 1,
+                max: 100,
+            })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(TerrainGenerator.groundNoise.settings, "strength", {
+                step: 0.1,
+                min: 1,
+                max: GridMetrics.pointsPerChunk * 2,
+            })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "roughness", {
+                step: 0.01,
+                min: 0,
+                max: 2,
+            })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "octaves", {
+                step: 1,
+                min: 1,
+                max: 10,
+            })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "persistance", {
+                step: 0.01,
+                min: 0,
+                max: 1,
+            })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "lacunarity", {
+                step: 0.01,
+            })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "minValue", {
+                step: 0.01,
+                min: -1,
+                max: 1,
+            })
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "offset")
+            .on("change", this.generate.bind(this));
+        folder
+            .addInput(groundNoise.settings, "weight")
+            .on("change", this.generate.bind(this));
     }
-
-    private chunk: Chunk;
-
-    private readonly gui: GUI;
-    private readonly regionsFolder: GUI;
-
-    private readonly terrain: THREE.Mesh;
-    private readonly terrainMaterial: THREE.MeshPhongMaterial;
-    private wireframeMode: boolean = false;
-    private readonly wireframe: THREE.LineSegments;
-    private readonly wireframeMaterial: THREE.LineBasicMaterial;
-    private readonly curveFunction: (x: number) => number;
-
-    private levelOfDetail = 0;
-    private regions: TerrainType[] = [
-        {
-            name: "deep water",
-            height: 0,
-            blend: 0.0,
-            color: new THREE.Color("#2255ee"),
-        },
-        {
-            name: "water",
-            height: 0.25,
-            blend: 0.0,
-            color: new THREE.Color("#5179ee"),
-        },
-        {
-            name: "sand",
-            height: 0.35,
-            blend: 0.0,
-            color: new THREE.Color("#fff4c6"),
-        },
-        {
-            name: "grass 1",
-            height: 0.4,
-            blend: 0.0,
-            color: new THREE.Color("#60bb60"),
-        },
-        {
-            name: "grass 2",
-            height: 0.55,
-            blend: 0.0,
-            color: new THREE.Color("#468a46"),
-        },
-        {
-            name: "rock 1",
-            height: 0.7,
-            blend: 0.0,
-            color: new THREE.Color("#694f35"),
-        },
-        {
-            name: "rock 2",
-            height: 0.8,
-            blend: 0.0,
-            color: new THREE.Color("#423324"),
-        },
-        {
-            name: "snow",
-            height: 0.9,
-            blend: 0.0,
-            color: new THREE.Color("#eaeaea"),
-        },
-    ];
 }
