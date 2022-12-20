@@ -12,7 +12,7 @@ export class NoiseFilter {
             strength?: number;
             roughness?: number;
             scale?: number;
-            center?: Vector3;
+            offset?: Vector3;
             weight?: Vector3;
             octaves?: number;
             persistance?: number;
@@ -24,7 +24,7 @@ export class NoiseFilter {
             strength: parameters.strength || 1,
             roughness: parameters.roughness || 1,
             scale: parameters.scale || 1,
-            center: parameters.center || new Vector3(0, 0, 0),
+            offset: parameters.offset || new Vector3(0, 0, 0),
             weight: parameters.weight || new Vector3(1, 1, 1),
             octaves: parameters.octaves || 6,
             persistance: parameters.persistance || 0.5,
@@ -48,7 +48,7 @@ export class NoiseFilter {
             strength,
             roughness,
             scale,
-            center,
+            offset,
             weight,
             octaves,
             persistance,
@@ -62,7 +62,7 @@ export class NoiseFilter {
             this._vector3.set(x, y, z);
             this._vector3.multiply(weight);
             this._vector3.multiplyScalar(frequency / scale);
-            this._vector3.add(center);
+            this._vector3.add(offset);
             let noiseValue = this._noise.noise3D(
                 this._vector3.x,
                 this._vector3.y,
@@ -73,10 +73,10 @@ export class NoiseFilter {
             frequency *= lacunarity;
             amplitude *= persistance;
         }
-        const curveFunction = (x: number) => {
-            return x > 0 ? Math.pow(x, 2) : x;
-        };
-        value = curveFunction(value);
+        // const curveFunction = (x: number) => {
+        //     return x > 0 ? Math.pow(x, 2) : x;
+        // };
+        // value = curveFunction(value);
         value = Math.max(0, value - minValue);
         return value * strength;
     }
@@ -87,7 +87,7 @@ export namespace NoiseFilter {
         strength: number;
         roughness: number;
         scale: number;
-        center: Vector3;
+        offset: Vector3;
         weight: Vector3;
         octaves: number;
         persistance: number;

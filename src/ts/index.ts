@@ -4,6 +4,7 @@ import Canvas from "./core/Canvas";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import EventDispatcher from "./core/EventDispatcher";
 import { World } from "./procedural_landscape/World";
+import GridMetrics from "./procedural_landscape/GridMetrics";
 
 const canvas = new Canvas({ elementId: "c" });
 const app = new Application(canvas);
@@ -49,8 +50,10 @@ world.generate();
 scene.add(world);
 
 const resetCamera = () => {
-    camera.position.set(0, 100, -200);
-    camera.lookAt(0, 0, 0);
+    camera.position.set(0, 50, -50);
+    let center = new THREE.Vector3(0, 0, 0);
+    center.addScalar(GridMetrics.pointsPerChunk / 2);
+    orbitCameraController.target = center;
 };
 
 resetCamera();

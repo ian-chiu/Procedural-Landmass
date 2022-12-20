@@ -1,51 +1,47 @@
 import * as THREE from "three";
 import Chunk from "./Chunk";
-import { TerrainGenerator } from "./TerrainGenerator";
 import { Pane } from "tweakpane";
 import GridMetrics from "./GridMetrics";
+import MaterialGenerator from "./MaterialGenerator";
 
 export class World extends THREE.Object3D {
-    private chunk: Chunk;
-    private readonly terrain: THREE.Mesh;
-    private readonly terrainMaterial: THREE.MeshPhongMaterial;
-    private wireframeMode: boolean = false;
-    private readonly wireframe: THREE.LineSegments;
-    private readonly wireframeMaterial: THREE.LineBasicMaterial;
+    private _chunk: Chunk;
+    private _wireframeMode: boolean = false;
+    private readonly _mesh: THREE.Mesh;
+    private readonly _materialGenerator: MaterialGenerator;
+    private readonly _wireframe: THREE.LineSegments;
+    private readonly _wireframeMaterial: THREE.LineBasicMaterial;
 
     public constructor() {
         super();
-        this.guiSetup();
-        this.terrainMaterial = new THREE.MeshPhongMaterial({ color: "white" });
-        this.terrain = new THREE.Mesh(undefined, this.terrainMaterial);
-        this.chunk = new Chunk();
-        this.chunk.updateTerrainGeometry();
-        this.terrain.geometry = this.chunk.geometry;
-        this.wireframeMaterial = new THREE.LineBasicMaterial({
+        this._chunk = new Chunk();
+        this._chunk.update();
+        const groundPercent = this._chunk.shapeGenerator.groundPercent;
+        const chunkSize = GridMetrics.pointsPerChunk;
+        const minHeight = groundPercent * chunkSize - 1;
+        this._materialGenerator = new MaterialGenerator(minHeight);
+        this._mesh = new THREE.Mesh(
+            this._chunk.geometry,
+            this._materialGenerator.material
+        );
+        this._wireframeMaterial = new THREE.LineBasicMaterial({
             depthTest: false,
             opacity: 0.25,
             transparent: true,
         });
-        this.wireframe = new THREE.LineSegments(
-            undefined,
-            this.wireframeMaterial
+        this._wireframe = new THREE.LineSegments(
+            this._chunk.geometry,
+            this._wireframeMaterial
         );
+        this.guiSetup();
     }
 
     public generate() {
-        this.remove(this.terrain);
-        this.remove(this.wireframe);
+        this.remove(this._mesh);
+        this.remove(this._wireframe);
 
-        console.log(this.wireframeMode);
-        if (this.wireframeMode) {
-            const wireframeGeometry = new THREE.WireframeGeometry(
-                this.chunk.geometry
-            );
-            this.wireframe.geometry = wireframeGeometry;
-            this.add(this.wireframe);
-        } else {
-            this.chunk.updateTerrainGeometry();
-            this.add(this.terrain);
-        }
+        this._chunk.update();
+        this.add(this._wireframeMode ? this._wireframe : this._mesh);
     }
 
     private guiSetup() {
@@ -110,17 +106,17 @@ export class World extends THREE.Object3D {
         }
 
         let folder = pane.addFolder({ title: "General" });
-        let checkbox = { wireframe: this.wireframeMode };
+        let checkbox = { wireframe: this._wireframeMode };
         folder.addInput(checkbox, "wireframe").on("change", (e) => {
-            this.wireframeMode = e.value;
+            this._wireframeMode = e.value;
             this.generate();
         });
 
         folder = pane.addFolder({ title: "GroundNoise" });
 
-        const groundNoise = TerrainGenerator.groundNoise;
+        const groundNoise = this._chunk.shapeGenerator.groundNoise;
         folder
-            .addInput(TerrainGenerator.groundNoise, "seed", { step: 1 })
+            .addInput(groundNoise, "seed", { step: 1 })
             .on("change", this.generate.bind(this));
         folder
             .addInput(groundNoise.settings, "scale", {
@@ -130,7 +126,7 @@ export class World extends THREE.Object3D {
             })
             .on("change", this.generate.bind(this));
         folder
-            .addInput(TerrainGenerator.groundNoise.settings, "strength", {
+            .addInput(groundNoise.settings, "strength", {
                 step: 0.1,
                 min: 1,
                 max: GridMetrics.pointsPerChunk * 2,
@@ -175,5 +171,64 @@ export class World extends THREE.Object3D {
         folder
             .addInput(groundNoise.settings, "weight")
             .on("change", this.generate.bind(this));
+
+        folder = pane.addFolder({ title: "Regions" });
+        const commonFolder = folder.addFolder({ title: "Common" });
+        commonFolder
+            .addInput(this._materialGenerator, "slopeThreshold", {
+                min: 0,
+                max: 1,
+            })
+            .on("change", () => {
+                this._materialGenerator.material.userData.slopeThreshold.value =
+                    this._materialGenerator.slopeThreshold;
+                this.generate();
+            });
+        commonFolder
+            .addInput(this._materialGenerator, "slopeBlend", {
+                min: 0,
+                max: 1,
+            })
+            .on("change", () => {
+                this._materialGenerator.material.userData.slopeBlend.value =
+                    this._materialGenerator.slopeBlend;
+                this.generate();
+            });
+        commonFolder
+            .addInput(this._materialGenerator, "steepColor", {
+                color: { type: "float" },
+            })
+            .on("change", this.generate.bind(this));
+
+        const update = () => {
+            this.generate();
+            this.onChangeRegionFromGUI();
+        };
+        for (let i = 0; i < this._materialGenerator.regionCount; i++) {
+            const region = this._materialGenerator.regions[i];
+            const regionFolder = folder.addFolder({ title: `index ${i}` });
+            regionFolder.addInput(region, "name").on("change", update);
+            regionFolder
+                .addInput(region, "height", { min: 0, max: 1 })
+                .on("change", update);
+            regionFolder
+                .addInput(region, "blend", { min: 0, max: 1 })
+                .on("change", update);
+            regionFolder
+                .addInput(region, "color", { color: { type: "float" } })
+                .on("change", update);
+        }
+    }
+
+    private onChangeRegionFromGUI() {
+        for (let i = 0; i < this._materialGenerator.regionCount; i++) {
+            const color = this._materialGenerator.regions[i].color;
+            const height = this._materialGenerator.regions[i].height;
+            const blend = this._materialGenerator.regions[i].blend;
+            const userData = this._materialGenerator.material.userData;
+            userData.baseColors.value[i].setRGB(color.r, color.g, color.b);
+            userData.baseBeginHeights.value[i] = height;
+            userData.baseBlends.value[i] = blend;
+        }
     }
 }

@@ -16,6 +16,12 @@ html, body {
   cursor: pointer;
 }
 
+#gui-container .tp-fldv .tp-brkv {
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 #gui-container #drag-zone {
   position: absolute;
   width: 90%;

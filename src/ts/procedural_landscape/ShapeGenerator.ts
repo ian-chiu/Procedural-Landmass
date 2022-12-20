@@ -288,21 +288,35 @@ const triTable = [
     [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
 ];
 
-export class TerrainGenerator {
-    public static groundNoise = new NoiseFilter({
-        strength: 20,
-        roughness: 0.7,
-        scale: 50,
-        weight: new Vector3(1, 0.2, 1),
-        lacunarity: 1.65,
-        minValue: -0.75,
-    });
-    public static groundPercent = 0.3;
-    public static isolevel = 0.5;
+export class ShapeGenerator {
+    public groundNoise: NoiseFilter;
+    public groundPercent: number;
+    public isolevel: number;
 
-    public static generate(
+    public constructor(
+        groundNoise: NoiseFilter | null = null,
+        groundPercent = 0.3,
+        isolevel = 0.5
+    ) {
+        this.groundPercent = groundPercent;
+        this.isolevel = isolevel;
+        if (groundNoise) {
+            this.groundNoise = groundNoise;
+        } else {
+            this.groundNoise = new NoiseFilter({
+                strength: 8,
+                roughness: 0.7,
+                scale: 30,
+                weight: new Vector3(1, 0.2, 1),
+                lacunarity: 1.65,
+                minValue: -0.6,
+            });
+        }
+    }
+
+    public generate(
         side: number = GridMetrics.pointsPerChunk
-    ): TerrainGenerator.OutputProperties {
+    ): ShapeGenerator.OutputProperties {
         const density = this.generateDensity(side);
         const positions: number[] = [];
         const indices: number[] = [];
@@ -378,7 +392,6 @@ export class TerrainGenerator {
                         );
 
                         for (const point of points) {
-                            point.subScalar(GridMetrics.pointsPerChunk / 2);
                             const key = `${point.x},${point.y},${point.z}`;
                             if (key in indexMemory) {
                                 indices.push(indexMemory[key]);
@@ -400,7 +413,7 @@ export class TerrainGenerator {
         };
     }
 
-    private static interp(
+    private interp(
         edgeVertex1: Vector3,
         valueAtVertex1: number,
         edgeVertex2: Vector3,
@@ -415,7 +428,7 @@ export class TerrainGenerator {
         return result;
     }
 
-    private static generateDensity(side: number): Float32Array {
+    private generateDensity(side: number): Float32Array {
         const result = new Float32Array(Math.pow(side + 1, 3));
         for (let x = 1; x < side; x++) {
             for (let y = 1; y < side; y++) {
@@ -432,7 +445,7 @@ export class TerrainGenerator {
     }
 }
 
-export namespace TerrainGenerator {
+export namespace ShapeGenerator {
     export type OutputProperties = {
         positions: Float32Array;
         indices: number[];
