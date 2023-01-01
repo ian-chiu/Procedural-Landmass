@@ -2,6 +2,6 @@ import GridMetrics from "./GridMetrics";
 
 export function indexFromCoord(x: number, y: number, z: number)
 {
-    return x + GridMetrics.pointsPerChunk * (y + GridMetrics.pointsPerChunk * z);
+    const chunkSize = GridMetrics.pointsPerChunk + 2;
+    return x + chunkSize * y + chunkSize * chunkSize * z;
 }
-

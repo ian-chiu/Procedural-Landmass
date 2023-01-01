@@ -289,44 +289,64 @@ const triTable = [
 ];
 
 export class ShapeGenerator {
+    private static instance: ShapeGenerator;
     public groundNoise: NoiseFilter;
-    public groundPercent: number;
-    public isolevel: number;
 
-    public constructor(
-        groundNoise: NoiseFilter | null = null,
-        groundPercent = 0.3,
-        isolevel = 0.5
-    ) {
-        this.groundPercent = groundPercent;
-        this.isolevel = isolevel;
-        if (groundNoise) {
-            this.groundNoise = groundNoise;
-        } else {
-            this.groundNoise = new NoiseFilter({
-                strength: 8,
-                roughness: 0.7,
-                scale: 30,
-                weight: new Vector3(1, 0.2, 1),
-                lacunarity: 1.65,
-                minValue: -0.6,
-            });
+    /**
+     * The static method that controls the access to the singleton instance.
+     *
+     * This implementation let you subclass the Singleton class while keeping
+     * just one instance of each subclass around.
+     */
+    public static getInstance(): ShapeGenerator {
+        if (!ShapeGenerator.instance) {
+            ShapeGenerator.instance = new ShapeGenerator();
         }
+
+        return ShapeGenerator.instance;
+    }
+
+    private constructor() {
+        this.groundNoise = new NoiseFilter({
+            strength: 8,
+            roughness: 0.7,
+            scale: 30,
+            weight: new Vector3(1, 0.2, 1),
+            lacunarity: 1.65,
+            minValue: -0.6,
+        });
     }
 
     public generate(
-        side: number = GridMetrics.pointsPerChunk
+        side: number = GridMetrics.pointsPerChunk,
+        groundPercent = 0.3,
+        isolevel = 0.5
     ): ShapeGenerator.OutputProperties {
-        const density = this.generateDensity(side);
+        const interp = (
+            edgeVertex1: Vector3,
+            valueAtVertex1: number,
+            edgeVertex2: Vector3,
+            valueAtVertex2: number
+        ) => {
+            const result = new Vector3().copy(edgeVertex2);
+            result.sub(edgeVertex1);
+            result.multiplyScalar(
+                (isolevel - valueAtVertex1) / (valueAtVertex2 - valueAtVertex1)
+            );
+            result.add(edgeVertex1);
+            return result;
+        };
+
+        const density = this.generateDensity(side, groundPercent);
         const positions: number[] = [];
         const indices: number[] = [];
         const indexMemory: {
             [key: string]: number;
         } = {};
         let vertexIndex = 0;
-        for (let x = 0; x < side; x++) {
-            for (let y = 0; y < side; y++) {
-                for (let z = 0; z < side; z++) {
+        for (let x = 1; x < side + 1; x++) {
+            for (let y = 0; y < side - 1; y++) {
+                for (let z = 1; z < side + 1; z++) {
                     const currPosition = new Vector3(x, y, z);
 
                     const cubeValues = [
@@ -341,14 +361,14 @@ export class ShapeGenerator {
                     ];
 
                     let cubeIndex = 0;
-                    if (cubeValues[0] < this.isolevel) cubeIndex |= 1;
-                    if (cubeValues[1] < this.isolevel) cubeIndex |= 2;
-                    if (cubeValues[2] < this.isolevel) cubeIndex |= 4;
-                    if (cubeValues[3] < this.isolevel) cubeIndex |= 8;
-                    if (cubeValues[4] < this.isolevel) cubeIndex |= 16;
-                    if (cubeValues[5] < this.isolevel) cubeIndex |= 32;
-                    if (cubeValues[6] < this.isolevel) cubeIndex |= 64;
-                    if (cubeValues[7] < this.isolevel) cubeIndex |= 128;
+                    if (cubeValues[0] < isolevel) cubeIndex |= 1;
+                    if (cubeValues[1] < isolevel) cubeIndex |= 2;
+                    if (cubeValues[2] < isolevel) cubeIndex |= 4;
+                    if (cubeValues[3] < isolevel) cubeIndex |= 8;
+                    if (cubeValues[4] < isolevel) cubeIndex |= 16;
+                    if (cubeValues[5] < isolevel) cubeIndex |= 32;
+                    if (cubeValues[6] < isolevel) cubeIndex |= 64;
+                    if (cubeValues[7] < isolevel) cubeIndex |= 128;
 
                     const edges = triTable[cubeIndex];
                     let i = 0;
@@ -367,7 +387,7 @@ export class ShapeGenerator {
 
                         const points = [];
                         points.push(
-                            this.interp(
+                            interp(
                                 cornerOffsets[e00],
                                 cubeValues[e00],
                                 cornerOffsets[e01],
@@ -375,7 +395,7 @@ export class ShapeGenerator {
                             ).add(currPosition)
                         );
                         points.push(
-                            this.interp(
+                            interp(
                                 cornerOffsets[e10],
                                 cubeValues[e10],
                                 cornerOffsets[e11],
@@ -383,7 +403,7 @@ export class ShapeGenerator {
                             ).add(currPosition)
                         );
                         points.push(
-                            this.interp(
+                            interp(
                                 cornerOffsets[e20],
                                 cubeValues[e20],
                                 cornerOffsets[e21],
@@ -413,29 +433,14 @@ export class ShapeGenerator {
         };
     }
 
-    private interp(
-        edgeVertex1: Vector3,
-        valueAtVertex1: number,
-        edgeVertex2: Vector3,
-        valueAtVertex2: number
-    ) {
-        const result = new Vector3().copy(edgeVertex2);
-        result.sub(edgeVertex1);
-        result.multiplyScalar(
-            (this.isolevel - valueAtVertex1) / (valueAtVertex2 - valueAtVertex1)
-        );
-        result.add(edgeVertex1);
-        return result;
-    }
-
-    private generateDensity(side: number): Float32Array {
-        const result = new Float32Array(Math.pow(side + 1, 3));
-        for (let x = 1; x < side; x++) {
-            for (let y = 1; y < side; y++) {
-                for (let z = 1; z < side; z++) {
+    private generateDensity(side: number, groundPercent: number): Float32Array {
+        const result = new Float32Array((side + 2) * (side + 2) * (side + 2));
+        for (let x = 0; x < side + 2; x++) {
+            for (let y = 0; y < side + 2; y++) {
+                for (let z = 0; z < side + 2; z++) {
                     const index = indexFromCoord(x, y, z);
-                    let value = -y + this.groundPercent * side;
-                    let terrainDensity = this.groundNoise.evaluate(x, y, z);
+                    let value = -y + groundPercent * side;
+                    let terrainDensity = this.groundNoise.evaluate(x + 2, y, z);
                     value += terrainDensity;
                     result[index] = value;
                 }

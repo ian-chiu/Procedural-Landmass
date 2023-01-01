@@ -1,47 +1,45 @@
 import * as THREE from "three";
-import Chunk from "./Chunk";
 import { Pane } from "tweakpane";
 import GridMetrics from "./GridMetrics";
 import MaterialGenerator from "./MaterialGenerator";
+import InfiniteTerrainGenerator from "./InfiniteTerrainGenerator";
+import { ShapeGenerator } from "./ShapeGenerator";
 
 export class World extends THREE.Object3D {
-    private _chunk: Chunk;
-    private _wireframeMode: boolean = false;
-    private readonly _mesh: THREE.Mesh;
-    private readonly _materialGenerator: MaterialGenerator;
-    private readonly _wireframe: THREE.LineSegments;
-    private readonly _wireframeMaterial: THREE.LineBasicMaterial;
+    private _wireframeMode = false;
 
     public constructor() {
         super();
-        this._chunk = new Chunk();
-        this._chunk.update();
-        const groundPercent = this._chunk.shapeGenerator.groundPercent;
-        const chunkSize = GridMetrics.pointsPerChunk;
-        const minHeight = groundPercent * chunkSize - 1;
-        this._materialGenerator = new MaterialGenerator(minHeight);
-        this._mesh = new THREE.Mesh(
-            this._chunk.geometry,
-            this._materialGenerator.material
-        );
-        this._wireframeMaterial = new THREE.LineBasicMaterial({
-            depthTest: false,
-            opacity: 0.25,
-            transparent: true,
-        });
-        this._wireframe = new THREE.LineSegments(
-            this._chunk.geometry,
-            this._wireframeMaterial
-        );
         this.guiSetup();
     }
 
-    public generate() {
-        this.remove(this._mesh);
-        this.remove(this._wireframe);
+    public update(cameraPosition: THREE.Vector3) {
+        InfiniteTerrainGenerator.getInstance().update(cameraPosition);
+        const activeChunks =
+            InfiniteTerrainGenerator.getInstance().activeChunks;
+        for (const key of InfiniteTerrainGenerator.getInstance()
+            .chunksToRemove) {
+            const found = this.getObjectByName(key);
+            if (found) {
+                console.log("remove chunk " + found.name);
+                this.remove(found);
+            }
+        }
+        for (const key in activeChunks) {
+            const found = this.getObjectByName(key);
+            if (!found) {
+                console.log("add chunk " + activeChunks[key].mesh.name);
+                this.add(activeChunks[key].mesh);
+            }
+        }
+    }
 
-        this._chunk.update();
-        this.add(this._wireframeMode ? this._wireframe : this._mesh);
+    public generate() {
+        const activeChunks =
+            InfiniteTerrainGenerator.getInstance().activeChunks;
+        for (const key in activeChunks) {
+            activeChunks[key].update();
+        }
     }
 
     private guiSetup() {
@@ -55,7 +53,6 @@ export class World extends THREE.Object3D {
             if (header) {
                 // if present, the header is where you move the DIV from:
                 header.onmousedown = dragMouseDown;
-                console.log("header");
             } else {
                 // otherwise, move the DIV from anywhere inside the DIV:
                 anchor.onmousedown = dragMouseDown;
@@ -114,7 +111,7 @@ export class World extends THREE.Object3D {
 
         folder = pane.addFolder({ title: "GroundNoise" });
 
-        const groundNoise = this._chunk.shapeGenerator.groundNoise;
+        const groundNoise = ShapeGenerator.getInstance().groundNoise;
         folder
             .addInput(groundNoise, "seed", { step: 1 })
             .on("change", this.generate.bind(this));
@@ -174,28 +171,29 @@ export class World extends THREE.Object3D {
 
         folder = pane.addFolder({ title: "Regions" });
         const commonFolder = folder.addFolder({ title: "Common" });
+        const materialGenerator = MaterialGenerator.getInstance();
         commonFolder
-            .addInput(this._materialGenerator, "slopeThreshold", {
+            .addInput(materialGenerator, "slopeThreshold", {
                 min: 0,
                 max: 1,
             })
             .on("change", () => {
-                this._materialGenerator.material.userData.slopeThreshold.value =
-                    this._materialGenerator.slopeThreshold;
+                materialGenerator.material.userData.slopeThreshold.value =
+                    materialGenerator.slopeThreshold;
                 this.generate();
             });
         commonFolder
-            .addInput(this._materialGenerator, "slopeBlend", {
+            .addInput(materialGenerator, "slopeBlend", {
                 min: 0,
                 max: 1,
             })
             .on("change", () => {
-                this._materialGenerator.material.userData.slopeBlend.value =
-                    this._materialGenerator.slopeBlend;
+                materialGenerator.material.userData.slopeBlend.value =
+                    materialGenerator.slopeBlend;
                 this.generate();
             });
         commonFolder
-            .addInput(this._materialGenerator, "steepColor", {
+            .addInput(materialGenerator, "steepColor", {
                 color: { type: "float" },
             })
             .on("change", this.generate.bind(this));
@@ -204,8 +202,8 @@ export class World extends THREE.Object3D {
             this.generate();
             this.onChangeRegionFromGUI();
         };
-        for (let i = 0; i < this._materialGenerator.regionCount; i++) {
-            const region = this._materialGenerator.regions[i];
+        for (let i = 0; i < materialGenerator.regionCount; i++) {
+            const region = materialGenerator.regions[i];
             const regionFolder = folder.addFolder({ title: `index ${i}` });
             regionFolder.addInput(region, "name").on("change", update);
             regionFolder
@@ -221,11 +219,12 @@ export class World extends THREE.Object3D {
     }
 
     private onChangeRegionFromGUI() {
-        for (let i = 0; i < this._materialGenerator.regionCount; i++) {
-            const color = this._materialGenerator.regions[i].color;
-            const height = this._materialGenerator.regions[i].height;
-            const blend = this._materialGenerator.regions[i].blend;
-            const userData = this._materialGenerator.material.userData;
+        const materialGenerator = MaterialGenerator.getInstance();
+        for (let i = 0; i < materialGenerator.regionCount; i++) {
+            const color = materialGenerator.regions[i].color;
+            const height = materialGenerator.regions[i].height;
+            const blend = materialGenerator.regions[i].blend;
+            const userData = materialGenerator.material.userData;
             userData.baseColors.value[i].setRGB(color.r, color.g, color.b);
             userData.baseBeginHeights.value[i] = height;
             userData.baseBlends.value[i] = blend;

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import GridMetrics from "./GridMetrics";
 import { shaderChunk } from "./shaderChunks";
+import { ShapeGenerator } from "./ShapeGenerator";
 
 const MAX_REGION_COUNT = 8;
 
@@ -12,6 +13,7 @@ type RegionType = {
 };
 
 class MaterialGenerator {
+    private static _instance: MaterialGenerator;
     public material: THREE.MeshPhongMaterial;
     public slopeThreshold = 0.5;
     public slopeBlend = 0.5;
@@ -19,10 +21,14 @@ class MaterialGenerator {
     public regions: RegionType[];
     public steepColor: THREE.Color;
 
-    public constructor(
-        minHeight: number,
-        maxHeight = GridMetrics.pointsPerChunk
-    ) {
+    public static getInstance() {
+        if (!MaterialGenerator._instance) {
+            MaterialGenerator._instance = new MaterialGenerator();
+        }
+        return MaterialGenerator._instance;
+    }
+
+    private constructor() {
         this.steepColor = new THREE.Color("rgb(131, 85, 61)");
         const regions: RegionType[] = [
             {
@@ -79,8 +85,13 @@ class MaterialGenerator {
 
         this.material = new THREE.MeshPhongMaterial({ color: "white" });
         this.material.userData = {
-            minHeight: { value: minHeight },
-            maxHeight: { value: maxHeight },
+            minHeight: {
+                value:
+                    ShapeGenerator.getInstance().groundNoise.settings.minValue *
+                        GridMetrics.pointsPerChunk -
+                    1,
+            },
+            maxHeight: { value: GridMetrics.pointsPerChunk },
             regionCount: { value: this.regionCount },
             slopeThreshold: { value: this.slopeThreshold },
             slopeBlend: { value: this.slopeBlend },

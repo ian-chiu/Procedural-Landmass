@@ -60,9 +60,9 @@ export class NoiseFilter {
         let value = 0;
         for (let octave = 0; octave < octaves; octave++) {
             this._vector3.set(x, y, z);
+            this._vector3.add(offset);
             this._vector3.multiply(weight);
             this._vector3.multiplyScalar(frequency / scale);
-            this._vector3.add(offset);
             let noiseValue = this._noise.noise3D(
                 this._vector3.x,
                 this._vector3.y,
