@@ -1,7 +1,39 @@
 html, body {
-    margin: 0;
-    padding: 0;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#hint-text {
+  position: absolute;
+  width: 100%;
+  font-family: monospace;
+  top: 10px;
+  text-align: center;
+}
+
+#gui-container {
+  position: absolute;
+  top: 50px;
+  left: 30px;
+}
+
+#gui-container .tp-rotv .tp-rotv_b .tp-rotv_m {
+  cursor: pointer;
+}
+
+#gui-container .tp-fldv .tp-brkv {
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#gui-container #drag-zone {
+  position: absolute;
+  width: 90%;
+  height: 25px;
+  top: 0;
+  cursor: move;
 }
