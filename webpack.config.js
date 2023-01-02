@@ -24,7 +24,8 @@ const config = {
 		new CopyPlugin({
 			patterns: [
 				{ from: "./src/css", to: "" },
-				{ from: "./src/view", to: "" }
+				{ from: "./src/view", to: "" },
+				{ from: "./resources", to: "resources" }
 			]
 		})
 	]

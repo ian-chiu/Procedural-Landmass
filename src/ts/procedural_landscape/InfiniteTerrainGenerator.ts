@@ -1,13 +1,15 @@
 import { Vector2, Vector3 } from "three";
 import Chunk from "./Chunk";
-import GridMetrics from "./GridMetrics";
 
 class InfiniteTerrainGenerator {
     private static _instance: InfiniteTerrainGenerator;
 
-    private readonly _visibleChunkCount: number;
     public chunksToRemove: Set<string>;
-    public activeChunks: { [key: string]: Chunk };
+    public chunks: Chunk[] = [];
+
+    private readonly _visibleChunkCount: number;
+    private readonly _totalChunkCount: number;
+    private _activeChunkIndices: { [key: string]: number };
 
     public static getInstance() {
         if (!InfiniteTerrainGenerator._instance) {
@@ -16,22 +18,32 @@ class InfiniteTerrainGenerator {
         return InfiniteTerrainGenerator._instance;
     }
 
+    public getVisibleDistance() {
+        return this._visibleChunkCount * Chunk.sizeXZ;
+    }
+
     private constructor() {
         this._visibleChunkCount = 5;
         this.chunksToRemove = new Set();
-        this.activeChunks = {};
+        this._activeChunkIndices = {};
+
+        this._totalChunkCount = (1 + this._visibleChunkCount * 2) ** 2;
+        for (let i = 0; i < this._totalChunkCount; i++) {
+            this.chunks.push(new Chunk());
+        }
     }
 
-    public update(cameraPosition: THREE.Vector3) {
+    public update(camera: THREE.PerspectiveCamera) {
+        const cameraPosition = camera.position;
         const playerChunkX = Math.floor(
-            cameraPosition.x / GridMetrics.pointsPerChunk
+            cameraPosition.x / Chunk.sizeXZ
         );
         const playerChunkY = Math.floor(
-            cameraPosition.z / GridMetrics.pointsPerChunk
+            cameraPosition.z / Chunk.sizeXZ
         );
 
         this.chunksToRemove.clear();
-        for (const key in this.activeChunks) {
+        for (const key in this._activeChunkIndices) {
             this.chunksToRemove.add(key);
         }
 
@@ -47,26 +59,35 @@ class InfiniteTerrainGenerator {
             ) {
                 const chunkCoord = new Vector2(x, y);
                 const key = `${chunkCoord.x},${chunkCoord.y}`;
-                if (!(key in this.activeChunks)) {
-                    this.createChunk(chunkCoord);
-                }
                 this.chunksToRemove.delete(key);
+                const activeCount =
+                    Object.keys(this._activeChunkIndices).length;
+                if (!(key in this._activeChunkIndices) && activeCount < this._totalChunkCount) {
+                    let targetIndex = 0;
+                    for (let i = 0; i < this._totalChunkCount; i++) {
+                        if (!this.chunks[i].active) {
+                            targetIndex = i;
+                            break;
+                        }
+                    }
+                    const position = new Vector3(
+                        Math.floor(chunkCoord.x * Chunk.sizeXZ),
+                        0,
+                        Math.floor(chunkCoord.y * Chunk.sizeXZ)
+                    );
+                    this.chunks[targetIndex].active = true;
+                    this.chunks[targetIndex].position = position;
+                    this.chunks[targetIndex].chunkCoord = chunkCoord;
+                    this.chunks[targetIndex].mesh.name = this.chunks[targetIndex].toString();
+                    this.chunks[targetIndex].update();
+                    this._activeChunkIndices[key] = targetIndex;
+                }
             }
         }
-
         for (const key of this.chunksToRemove) {
-            delete this.activeChunks[key];
+            this.chunks[this._activeChunkIndices[key]].active = false;
+            delete this._activeChunkIndices[key];
         }
-    }
-
-    public createChunk(chunkCoord: Vector2) {
-        const position = new Vector3(
-            Math.floor(chunkCoord.x * GridMetrics.pointsPerChunk),
-            0,
-            Math.floor(chunkCoord.y * GridMetrics.pointsPerChunk)
-        );
-        const newChunk = new Chunk(position);
-        this.activeChunks[newChunk.toString()] = newChunk;
     }
 }
 

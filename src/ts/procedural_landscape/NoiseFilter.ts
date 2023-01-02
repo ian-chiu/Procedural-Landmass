@@ -17,7 +17,7 @@ export class NoiseFilter {
             octaves?: number;
             persistance?: number;
             lacunarity?: number;
-            minValue?: number;
+            hardFloor?: number;
         } = {}
     ) {
         this.settings = {
@@ -29,7 +29,7 @@ export class NoiseFilter {
             octaves: parameters.octaves || 6,
             persistance: parameters.persistance || 0.5,
             lacunarity: parameters.lacunarity || 2,
-            minValue: parameters.minValue || -1,
+            hardFloor: parameters.hardFloor || -1,
         };
         this._noise = new SimplexNoise(this._seed);
     }
@@ -53,7 +53,7 @@ export class NoiseFilter {
             octaves,
             persistance,
             lacunarity,
-            minValue,
+            hardFloor,
         } = this.settings;
         let frequency = roughness;
         let amplitude = 1;
@@ -77,7 +77,7 @@ export class NoiseFilter {
         //     return x > 0 ? Math.pow(x, 2) : x;
         // };
         // value = curveFunction(value);
-        value = Math.max(0, value - minValue);
+        value = Math.max(0, value - hardFloor);
         return value * strength;
     }
 }
@@ -92,6 +92,6 @@ export namespace NoiseFilter {
         octaves: number;
         persistance: number;
         lacunarity: number;
-        minValue: number;
+        hardFloor: number;
     };
 }

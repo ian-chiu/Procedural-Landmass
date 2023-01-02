@@ -41,7 +41,7 @@ export namespace shaderChunk {
         for (int i = 0; i < regionCount; i++) {
             float drawStrength = inverseLerp(-baseBlends[i] / 2.0 - EPSILON, baseBlends[i] / 2.0, heightPercent - baseBeginHeights[i]);
             diffuseColor.rgb = diffuseColor.rgb * (1.0 - drawStrength) + baseColors[i] * drawStrength;
-            diffuseColor.rgb = diffuseColor.rgb * flatWeight + steepColor * (1.0 - flatWeight);
+            // diffuseColor.rgb = diffuseColor.rgb * flatWeight + steepColor * (1.0 - flatWeight);
         }
     `;
 }
