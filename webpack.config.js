@@ -6,7 +6,7 @@ const config = {
 	entry: './src/ts/index.ts',
 	output: {
 		filename: 'bundle.js',
-		path: path.resolve(__dirname, 'public')
+		path: path.resolve(__dirname, 'docs')
 	},
 	resolve: {
 		extensions: [ '.ts',  '.js' ]
@@ -24,8 +24,7 @@ const config = {
 		new CopyPlugin({
 			patterns: [
 				{ from: "./src/css", to: "" },
-				{ from: "./src/view", to: "" },
-				{ from: "./resources", to: "resources" }
+				{ from: "./src/view", to: "" }
 			]
 		})
 	]

@@ -4,14 +4,12 @@ import Canvas from "./core/Canvas";
 import { FirstPersonControls } from "three/examples/jsm/controls/FirstPersonControls";
 import EventDispatcher from "./core/EventDispatcher";
 import { GuiHelper } from "./procedural_landscape/GuiHelper";
-import { Vector3 } from "three";
 import Chunk from "./procedural_landscape/Chunk";
 import InfiniteTerrainGenerator from "./procedural_landscape/InfiniteTerrainGenerator";
 
 const canvas = new Canvas({ elementId: "c" });
 const app = new Application(canvas);
 const renderer = app.renderer;
-renderer.autoClearColor = false;
 const scene = new THREE.Scene();
 const infiniteTerrainGenerator = InfiniteTerrainGenerator.getInstance();
 
@@ -29,7 +27,7 @@ GuiHelper.setup();
 }
 
 {
-    const skyColor = 0xb1e1ff; // light blue
+    const skyColor = 'lightblue'; // light blue
     const groundColor = 0xb97a20; // brownish orange
     const intensity = 0.2;
     const light = new THREE.HemisphereLight(skyColor, groundColor, intensity);
@@ -39,33 +37,10 @@ GuiHelper.setup();
 
 const near = 1;
 const far = infiniteTerrainGenerator.getVisibleDistance();
-const color = 'lightgray';
+const color = 'lightblue';
 const fog = new THREE.Fog(color, near, far);
 scene.fog = fog;
-
-const bgScene = new THREE.Scene();
-let bgMesh: THREE.Mesh;
-{
-    const loader = new THREE.TextureLoader();
-    const texture = loader.load(
-        'resources/images/equirectangularmaps/env.jpg',
-    );
-    texture.magFilter = THREE.LinearFilter;
-    texture.minFilter = THREE.LinearFilter;
-
-    const shader = THREE.ShaderLib.equirect;
-    const material = new THREE.ShaderMaterial({
-        fragmentShader: shader.fragmentShader,
-        vertexShader: shader.vertexShader,
-        uniforms: shader.uniforms,
-        depthWrite: false,
-        side: THREE.BackSide,
-    });
-    material.uniforms.tEquirect.value = texture;
-    const plane = new THREE.BoxBufferGeometry(2, 2, 2);
-    bgMesh = new THREE.Mesh(plane, material);
-    bgScene.add(bgMesh);
-}
+scene.background = new THREE.Color(color);
 
 const cameraProps = {
     fov: 50,
@@ -83,16 +58,16 @@ const flyCameraControl = new FirstPersonControls(camera, canvas.domElement);
 flyCameraControl.lookSpeed = 0.0001;
 flyCameraControl.movementSpeed = 0.015;
 const resetCamera = () => {
-    let center = new THREE.Vector3(Chunk.sizeXZ, Chunk.sizeY / 3, Chunk.sizeXZ).divideScalar(2);
+    let center = new THREE.Vector3(Chunk.sizeXZ / 2, -5, Chunk.sizeXZ / 2);
     camera.position.copy(center);
-    flyCameraControl.lookAt(center.x, 0, center.z + 10);
+    flyCameraControl.lookAt(center.x, -10, center.z + 10);
 };
 resetCamera();
 
 const paneBarButton = document.getElementsByClassName("tp-rotv_b").item(0) as HTMLButtonElement;
 let cameraEnabled = true;
-window.addEventListener("keydown", (event) => {
-    if (event.code == "Space") {
+window.addEventListener("mousedown", (event) => {
+    if (event.button === 1) {
         cameraEnabled = !cameraEnabled;
         paneBarButton.click();
     }
@@ -117,8 +92,8 @@ app.onUpdate = (deltaTime: number) => {
         fog.far = 0;
     }
 
-    bgMesh.position.copy(camera.position);
-    renderer.render(bgScene, camera);
+    // bgMesh.position.copy(camera.position);
+    // renderer.render(bgScene, camera);
     renderer.render(scene, camera);
 };
 

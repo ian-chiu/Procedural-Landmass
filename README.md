@@ -1,5 +1,5 @@
-# Procedural Landscape Generation
+# Procedural Terrain Generation
 
-Website: https://procedural_landscape.chiu41.com
+Website: https://proceduralterrain.chiu41.com
 
-Use Three.js to implement procedural landscape generation. Inspired by Sebastian Lague.
+Use Three.js to implement procedural terrain generation. Inspired by Sebastian Lague.
